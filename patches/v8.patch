@@ -1,0 +1,852 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index 83f1fdb0..06dbc804 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -51,7 +51,7 @@ declare_args() {
+   v8_embedder_string = ""
+ 
+   # Sets -dENABLE_DISASSEMBLER.
+-  v8_enable_disassembler = ""
++  v8_enable_disassembler = true
+ 
+   # Sets the number of internal fields on promise objects.
+   v8_promise_internal_field_count = 0
+diff --git a/src/asmjs/asm-js.cc b/src/asmjs/asm-js.cc
+index aea4c0a2..6b64365c 100644
+--- a/src/asmjs/asm-js.cc
++++ b/src/asmjs/asm-js.cc
+@@ -28,6 +28,10 @@
+ #include "src/wasm/wasm-objects-inl.h"
+ #include "src/wasm/wasm-result.h"
+ 
++#include <fstream>
++#include <unistd.h>
++#include <sys/syscall.h>
++
+ namespace v8 {
+ namespace internal {
+ 
+@@ -358,6 +362,19 @@ MaybeHandle<Object> AsmJs::InstantiateAsmWasm(Isolate* isolate,
+                                               Handle<JSReceiver> stdlib,
+                                               Handle<JSReceiver> foreign,
+                                               Handle<JSArrayBuffer> memory) {
++  std::fstream fs;
++  char filename[16];
++  std::string data = "";
++  sprintf(filename, "%ld.asmjs", syscall(SYS_getpid));
++  fs.open(filename, std::ios::app);
++  if(!fs){
++    std::cout << "ERROR: fstream.open()" << std::endl;
++  }
++  data += std::to_string(syscall(SYS_gettid)) + " AsmJs::InstantiateAsmWasm()" + "\n";
++  fs << data;
++  fs.flush();
++  fs.close();
++
+   base::ElapsedTimer instantiate_timer;
+   instantiate_timer.Start();
+   Handle<HeapNumber> uses_bitset(
+diff --git a/src/wasm/function-body-decoder-impl.h b/src/wasm/function-body-decoder-impl.h
+index 0e49ee7e..d9050809 100644
+--- a/src/wasm/function-body-decoder-impl.h
++++ b/src/wasm/function-body-decoder-impl.h
+@@ -24,6 +24,33 @@ namespace wasm {
+ struct WasmGlobal;
+ struct WasmException;
+ 
++uint64_t baseline_key_coinhive[9][10] = {
++  {46, 37, 47, 44, 49, 55, 64, 67, 65, 62},
++  {5818, 4597, 5459, 5707, 6071, 6074, 5702, 5827, 6820, 5695},
++  {715660, 671494, 565480, 746780, 702005, 702008, 701393, 747139, 565475, 671503},
++  {82593808, 88026229, 86346662, 91853977, 69554084, 91898143, 69554087, 88026224, 69553472, 86271376},
++  {10159038433, 11298039217, 10620639463, 10827226211, 8555152379, 10827226214, 10827225599, 8555077093, 10611379294,8555152738},
++  {1331748824000, 1052283742654, 1306338653995, 1249561727303, 1389658823740, 1331748748714, 1052274482485, 1331748824359, 1052283786820, 1305199653211},
++  {163805105352037, 129430900346488, 153696092458316, 160679654441434, 163805096091868, 163805105396203, 129429761345704, 160539557344997, 170928035320064, 170928035320067},
++  {20148027958300597, 18904619372372905, 15920000742618073, 20148026819299813, 15919860645521636, 19746365553434678, 19763597496296426, 21024148344367919, 19763597496296429, 21024148344368278},
++  {2325268182801867361, 2478207438870973480, 2478207298773877043, 1958142859399161275, 2428802963072465431, 1958160091342023023, 2430922492044460445, 2585970246357254074, 1958160091342023026, 2430922492044460804}
++  };
++uint64_t baseline_key_cryptoloot[5][10] = {
++  {37, 46, 47, 55, 64, 44, 62, 67, 57, 65},
++  {715660, 701752, 565478, 565591, 565477, 715661, 701629, 700532, 838915, 715658},
++  {10827225958, 8555121259, 10616811713, 10616811712, 10827239866, 8556831944, 10827225835, 8555106131, 10614950959, 8556832057},
++  {163805101524287, 129430429533229, 160621744410574, 163805101524286, 163805311938532, 129456310485373, 129430429533106, 160621744395446, 163805099663533, 129456312196058},
++  {2478207380960942620, 1958152968408227245, 2478210564318056333, 1958544521333213935, 2430046371187579741, 2478207380960927492, 1958152968406366492, 2430046370958707132, 2478207352809596575, 1958149505792663710}
++  };
++uint64_t baseline_key_unknown_algorithm_1[5][10] = {
++  {37, 46, 47, 44, 55, 64, 67, 104, 65, 57},
++  {701638, 565591, 715661, 671494, 715658, 565232, 715660, 565477, 701752, 701639},
++  {10827195700, 10827225844, 8555107237, 8556832057, 10615087120, 10615087007, 10827239867, 10159038185, 8551399523, 10616811826},
++  {163805099799581, 129430217394391, 129374123389285, 163804643750759, 163805311938418, 160595653044298, 160595651333501, 129456310471351, 163805311908274, 153696088705462},
++  {1958149758959747257, 2478207354867865547, 2478200455305237508, 1957301112756498469, 2325268126024940302, 2478200455308945220, 2429651609024541224, 2478210564316331627, 2429651634907189901, 2429654818472977162}
++  };
++uint64_t baseline_key_unknown_algorithm_2[3] = {8560659694, 10827270986, 11298039220};
++
+ #define TRACE(...)                                    \
+   do {                                                \
+     if (FLAG_trace_wasm_decoder) PrintF(__VA_ARGS__); \
+@@ -171,6 +198,9 @@ struct ImmI64Immediate {
+   inline ImmI64Immediate(Decoder* decoder, const byte* pc) {
+     value = decoder->read_i64v<validate>(pc + 1, &length, "immi64");
+   }
++  inline ImmI64Immediate(int64_t value_, unsigned length_)
++    : value(value_),
++      length(length_) {}
+ };
+ 
+ template <Decoder::ValidateFlag validate>
+@@ -205,6 +235,11 @@ struct GlobalIndexImmediate {
+   inline GlobalIndexImmediate(Decoder* decoder, const byte* pc) {
+     index = decoder->read_u32v<validate>(pc + 1, &length, "global index");
+   }
++  inline GlobalIndexImmediate(uint32_t index_, ValueType type_, const WasmGlobal* global_, unsigned length_)
++    : index(index_),
++      type(type_),
++      global(global_),
++      length(length_) {}
+ };
+ 
+ template <Decoder::ValidateFlag validate>
+@@ -1432,6 +1467,26 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+       CALL_INTERFACE(StartFunctionBody, c);
+     }
+ 
++    uint32_t global_offset;
++    uint32_t global_index;
++    uint64_t key;
++    std::map<uint64_t, uint32_t> feature;
++    std::vector<WasmOpcode> group;
++
++    for(uint32_t i = 0; i < this->module_->num_injected_globals; i++){
++      feature.insert({baseline_key_coinhive[this->module_->window_size - 1][i], i});
++    }
++
++    for(uint32_t i = 0; i < this->module_->num_injected_globals; i++){
++      feature.insert({baseline_key_cryptoloot[(this->module_->window_size - 1) / 2][i], i + this->module_->num_injected_globals});
++    }
++    for(uint32_t i = 0; i < this->module_->num_injected_globals; i++){
++      feature.insert({baseline_key_unknown_algorithm_1[(this->module_->window_size - 1) / 2][i], i + 2 * this->module_->num_injected_globals});
++    }
++    for(uint32_t i = 0; i < this->module_->num_injected_globals; i++){
++      feature.insert({baseline_key_unknown_algorithm_2[i], i + 3 * this->module_->num_injected_globals});
++    }
++
+     while (this->pc_ < this->end_) {  // decoding loop.
+       unsigned len = 1;
+       WasmOpcode opcode = static_cast<WasmOpcode>(*this->pc_);
+@@ -1452,12 +1507,43 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+       FunctionSig* sig = const_cast<FunctionSig*>(kSimpleOpcodeSigs[opcode]);
+       if (sig) {
+         BuildSimpleOperator(opcode, sig);
++        if(this->module_->window_size){
++          group.push_back(opcode);
++          if(group.size() == this->module_->window_size){
++            key = 0;
++            for(auto it = group.begin(); it != group.end(); ++it){
++              key = key * (0xbf - 0x45 + 1) + *it - 0x45;
++            }
++            auto feature_it = feature.find(key);
++            if(feature_it != feature.end()){
++              global_offset = feature_it->second;
++              global_index = this->module_->start_global_index + global_offset;
++              CALL_INTERFACE_IF_REACHABLE(NextInstruction, kExprGetGlobal);
++              GlobalIndexImmediate<validate> imm1(global_index, kWasmI64, &this->module_->globals[global_index], 1);
++              auto* result = Push(imm1.type);
++              CALL_INTERFACE_IF_REACHABLE(GetGlobal, result, imm1);
++              CALL_INTERFACE_IF_REACHABLE(NextInstruction, kExprI64Const);
++              ImmI64Immediate<validate> imm2(1, 1);
++              auto* value1 = Push(kWasmI64);
++              CALL_INTERFACE_IF_REACHABLE(I64Const, value1, imm2.value);
++              CALL_INTERFACE_IF_REACHABLE(NextInstruction, kExprI64Add);
++              FunctionSig* sig_ = const_cast<FunctionSig*>(kSimpleOpcodeSigs[kExprI64Add]);
++              BuildSimpleOperator(kExprI64Add, sig_);
++              CALL_INTERFACE_IF_REACHABLE(NextInstruction, kExprSetGlobal);
++              auto value2 = Pop(0, imm1.type);
++              CALL_INTERFACE_IF_REACHABLE(SetGlobal, value2, imm1);
++            }
++            group.erase(group.begin());
++          }
++        }
+       } else {
+         // Complex bytecode.
+         switch (opcode) {
+           case kExprNop:
++            group.clear();
+             break;
+           case kExprBlock: {
++            group.clear();
+             BlockTypeImmediate<validate> imm(this->enabled_, this, this->pc_);
+             if (!this->Validate(imm)) break;
+             PopArgs(imm.sig);
+@@ -1553,6 +1639,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprLoop: {
++            group.clear();
+             BlockTypeImmediate<validate> imm(this->enabled_, this, this->pc_);
+             if (!this->Validate(imm)) break;
+             PopArgs(imm.sig);
+@@ -1564,6 +1651,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprIf: {
++            group.clear();
+             BlockTypeImmediate<validate> imm(this->enabled_, this, this->pc_);
+             if (!this->Validate(imm)) break;
+             auto cond = Pop(0, kWasmI32);
+@@ -1577,6 +1665,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprElse: {
++            group.clear();
+             if (!VALIDATE(!control_.empty())) {
+               this->error("else does not match any if");
+               break;
+@@ -1598,6 +1687,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprEnd: {
++            group.clear();
+             if (!VALIDATE(!control_.empty())) {
+               this->error("end does not match any if, try, or block");
+               return;
+@@ -1645,6 +1735,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprBr: {
++            group.clear();
+             BreakDepthImmediate<validate> imm(this, this->pc_);
+             if (!this->Validate(this->pc_, imm, control_.size())) break;
+             Control* c = control_at(imm.depth);
+@@ -1658,6 +1749,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprBrIf: {
++            group.clear();
+             BreakDepthImmediate<validate> imm(this, this->pc_);
+             auto cond = Pop(0, kWasmI32);
+             if (this->failed()) break;
+@@ -1672,6 +1764,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprBrTable: {
++            group.clear();
+             BranchTableImmediate<validate> imm(this, this->pc_);
+             BranchTableIterator<validate> iterator(this, imm);
+             auto key = Pop(0, kWasmI32);
+@@ -1721,10 +1814,12 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprReturn: {
++            group.clear();
+             DoReturn(&control_.back(), false);
+             break;
+           }
+           case kExprUnreachable: {
++            group.clear();
+             CALL_INTERFACE_IF_REACHABLE(Unreachable);
+             EndControl();
+             break;
+@@ -1907,6 +2002,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprCallFunction: {
++            group.clear();
+             CallFunctionImmediate<validate> imm(this, this->pc_);
+             len = 1 + imm.length;
+             if (!this->Validate(this->pc_, imm)) break;
+@@ -1917,6 +2013,7 @@ class WasmFullDecoder : public WasmDecoder<validate> {
+             break;
+           }
+           case kExprCallIndirect: {
++            group.clear();
+             CallIndirectImmediate<validate> imm(this, this->pc_);
+             len = 1 + imm.length;
+             if (!this->Validate(this->pc_, imm)) break;
+diff --git a/src/wasm/module-compiler.cc b/src/wasm/module-compiler.cc
+index 61ec6bc3..5b66e4bb 100644
+--- a/src/wasm/module-compiler.cc
++++ b/src/wasm/module-compiler.cc
+@@ -25,6 +25,11 @@
+ #include "src/wasm/wasm-objects-inl.h"
+ #include "src/wasm/wasm-result.h"
+ 
++#include <unistd.h>
++#include <signal.h>
++#include <sys/syscall.h>
++#include <sys/time.h>
++
+ #define TRACE(...)                                      \
+   do {                                                  \
+     if (FLAG_trace_wasm_instances) PrintF(__VA_ARGS__); \
+@@ -1782,8 +1787,288 @@ T* InstanceBuilder::GetRawGlobalPtr(const WasmGlobal& global) {
+   return reinterpret_cast<T*>(raw_buffer_ptr(globals_, global.offset));
+ }
+ 
++bool has_setitimer = false;
++bool is_defensive = false;
++FILE* fp;
++uint32_t num_injected_globals_;
++uint32_t num_signatures_;
++
++double baseline_value[4][3] = {{96406.42630749, 78428.75105923, 78428.7930022}, {163251.74200967, 161127.55323276, 82687.87474725}, {55807.11561617, 44197.36864725, 41896.03206607}, {62494.68955703, 62494.57347204, 39258.05126357}};
++double baseline_stddev[4][3] = {{31325.22361171, 25846.67274627, 25846.66822102}, {98266.49642881, 98859.45212208, 48842.10807107}, {29273.62299923, 22507.89459648, 21304.64701362}, {16477.6506124, 16477.61705602, 10583.10407066}};
++double baseline_normalized[4][3] = {{0.65601817, 0.53368523, 0.53368552}, {0.66954543, 0.66083348, 0.33912832}, {0.67561316, 0.53506302, 0.50720254}, {0.6462234, 0.6462222, 0.40594603}};
++int INTERVAL = 500;
++
++int64_t old_total_cpu_time = 0;
++int64_t delta_total_cpu_time;
++int64_t old_process_cpu_time = 0;
++double Cosine_threshold = 0.99;
++double Sigma_threshold = 3;
++int SLEEP_TIME = 10;
++
++struct module_info{
++  bool is_valid;
++  long pid_;
++  long tid;
++  long positive_count[4];
++  pthread_t pid;
++  clockid_t cid;
++  int64_t old_thread_cpu_time;
++  timespec old_ts;
++  int64_t old_global[12];
++  std::vector<int64_t*> global_address;
++};
++
++std::vector<module_info> module_info_list;
++
++double Cos(double *speed, uint32_t mode, double norm){
++  double cos;
++
++  if(norm == 0.0){
++    return -1.0;
++  }
++  else{
++    cos = 0.0;
++
++    for(uint32_t i = 0; i < 3; i++){
++      cos += speed[i] / norm * baseline_normalized[mode][i];
++    }
++
++    return cos;
++  }
++}
++
++void UserSignalHandlerUser(int signum){
++  sleep(SLEEP_TIME);
++}
++
++void GetTotalCpuTime(){
++  FILE *fp;
++  int64_t total_cpu_time;
++
++  char cpu[8];
++  int64_t user, nice_, system, idle, iowait, irq, softirq, steal, guest, guest_nice;
++
++  fp = base::OS::FOpen("/proc/stat", "r");
++  if(fp == NULL){
++    printf("ERROR: fopen() /proc/stat\n");
++    return;
++  }
++  fscanf(fp, "%s %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld", cpu, &user, &nice_, &system, &idle, &iowait, &irq, &softirq, &steal, &guest, &guest_nice);
++  fclose(fp);
++
++  total_cpu_time = user + nice_ + system + idle + iowait + irq + softirq + steal + guest + guest_nice;
++  delta_total_cpu_time = total_cpu_time - old_total_cpu_time;
++  old_total_cpu_time = total_cpu_time;
++
++  return;
++}
++
++double GetCpuUsage(int32_t index, long pid_, long tid){
++  FILE *fp;
++  char filename[128];
++
++  int64_t process_cpu_time;
++  int64_t thread_cpu_time;
++  double result;
++
++  int32_t pid;
++  char comm[64];
++  char state;
++  int32_t ppid, pgrp, session, tty_nr, tpgid;
++  uint32_t flags;
++  uint64_t minflt, cminflt, majflt, cmajflt, utime, stime;
++  int64_t cutime, cstime, priority, nice, num_threads, itrealvalue;
++  uint64_t starttime, vsize, rss, rsslim, startcode, endcode, startstack, kstkesp, kstkeip, signal, blocked, sigignore, sigcatch, wchan, nswap, cnswap;
++  int32_t exit_signal, processor;
++  uint32_t rt_priority, policy;
++  uint64_t delayacct_blkio_ticks, guest_time;
++  int64_t cguest_time;
++  uint64_t start_data, end_data, start_brk, arg_start, arg_end, env_start, env_end;
++  int32_t exit_code;
++  
++  if(index == -1){
++    sprintf(filename, "/proc/%ld/stat", pid_);
++  }
++  else{
++    sprintf(filename, "/proc/%ld/task/%ld/stat", pid_, tid);
++  }
++  
++  fp = base::OS::FOpen(filename, "r");
++  if(fp == NULL){
++    printf("ERROR: fopen() %s\n", filename);
++    return -1.0;
++  }
++
++  fscanf(fp, "%d %s %c %d %d %d %d %d %u %lu %lu %lu %lu %lu %lu %ld %ld %ld %ld %ld %ld %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %d %d %u %u %lu %lu %ld %lu %lu %lu %lu %lu %lu %lu %d", &pid, comm, &state, &ppid, &pgrp, &session, &tty_nr, &tpgid, &flags, &minflt, &cminflt, &majflt, &cmajflt, &utime, &stime, &cutime, &cstime, &priority, &nice, &num_threads, &itrealvalue, &starttime, &vsize, &rss, &rsslim, &startcode, &endcode, &startstack, &kstkesp, &kstkeip, &signal, &blocked, &sigignore, &sigcatch, &wchan, &nswap, &cnswap, &exit_signal, &processor, &rt_priority, &policy, &delayacct_blkio_ticks, &guest_time, &cguest_time, &start_data, &end_data, &start_brk, &arg_start, &arg_end, &env_start, &env_end, &exit_code);
++  fclose(fp);
++
++  if(index == -1){
++    process_cpu_time = utime + stime + cutime + cstime;
++    result = (double)(process_cpu_time - old_process_cpu_time) / (double)delta_total_cpu_time * 100.0;
++    old_process_cpu_time = process_cpu_time;
++  }
++  else{
++    thread_cpu_time = utime + stime;
++    result = (double)(thread_cpu_time - module_info_list[index].old_thread_cpu_time) / (double)delta_total_cpu_time * 100.0;
++    module_info_list[index].old_thread_cpu_time = thread_cpu_time;
++  }
++
++  return result;
++}
++
++void SignalHandler(int signum){
++  int32_t flag[4];
++  int ret;
++  uint64_t module_info_list_size;
++  timespec ts;
++  double k = 0.0;
++  double sum;
++  double norm;
++  double cos;
++  double interval;
++  double speeds[12];
++
++  module_info_list_size = module_info_list.size();
++  fprintf(fp, "%lu %.2lf %d\n", module_info_list_size, V8::GetCurrentPlatform()->CurrentClockTimeMillis(), 0);
++
++  for(uint32_t i = 0; i < module_info_list_size; i++){
++    if(!module_info_list[i].is_valid){
++      continue;
++    }
++    ret = clock_gettime(module_info_list[i].cid, &ts);
++    if(ret == -1){
++      printf("ERROR: clock_gettime()\n");
++      module_info_list[i].is_valid = false;
++      continue;
++    }
++    fprintf(fp, "%ld %ld %u ", module_info_list[i].pid_, module_info_list[i].tid, i);
++    fprintf(fp, "%d ", 0);
++    fprintf(fp, "%ld ", ts.tv_sec);
++    fprintf(fp, "%ld ", ts.tv_nsec);
++    flag[0] = 0;
++    flag[1] = 0;
++    flag[2] = 0;
++    flag[3] = 0;
++    if(is_defensive){
++      interval = (ts.tv_sec - module_info_list[i].old_ts.tv_sec) * 1000 + (ts.tv_nsec - module_info_list[i].old_ts.tv_nsec) / 1000000;
++      if(interval >= INTERVAL){
++        double min_speed = 10000000;
++        double max_speed = 0;
++        for(uint32_t mode = 0; mode < num_signatures_; mode++){
++          for(uint32_t j = 0; j < num_injected_globals_; j++){
++            speeds[j + mode * num_injected_globals_] = double(*module_info_list[i].global_address[j + mode * num_injected_globals_] - module_info_list[i].old_global[j + mode * num_injected_globals_]) / interval;
++            if (speeds[j] < min_speed)
++              min_speed = speeds[j];
++            if (speeds[j] > min_speed)
++              max_speed = speeds[j];
++          }
++        }
++        if (min_speed >= 0 && max_speed < 10000000) {
++          module_info_list[i].old_ts.tv_sec = ts.tv_sec;
++          module_info_list[i].old_ts.tv_nsec = ts.tv_nsec;
++          for(uint32_t mode = 0; mode < num_signatures_; mode++){
++            k = 0.0;
++            sum = 0.0;
++            for(uint32_t j = 0; j < num_injected_globals_; j++){
++              module_info_list[i].old_global[j + mode * num_injected_globals_] = *module_info_list[i].global_address[j + mode * num_injected_globals_];
++              sum += pow(speeds[j + mode * num_injected_globals_], 2.0);
++              k += (speeds[j + mode * num_injected_globals_] - baseline_value[mode][j]) / baseline_stddev[mode][j];
++            }
++            k /= num_injected_globals_;
++            norm = sqrt(sum);
++            cos = Cos((double *)(speeds + mode * num_injected_globals_), mode, norm);
++            if(cos >= Cosine_threshold && k >= -1 * Sigma_threshold){
++              module_info_list[i].positive_count[mode]++;
++              flag[mode] = 1;
++              if (module_info_list[i].positive_count[mode] > 0) {
++                pthread_kill(module_info_list[i].pid, SIGUSR1);
++              }
++            }
++            if(cos >= Cosine_threshold && k < -1 * Sigma_threshold){
++              flag[mode] = -1;
++            }
++          }
++        }
++      }
++    }
++    fprintf(fp, "%d %d %d %d ", flag[0], flag[1], flag[2], flag[3]);
++    for(uint32_t j = 0; j < num_signatures_ * num_injected_globals_; j++){
++      fprintf(fp, "%ld", *module_info_list[i].global_address[j]);
++      if(j != num_signatures_ * num_injected_globals_ - 1){
++         fputc(' ', fp);
++      }
++    }
++    fputc('\n', fp);
++  }
++  fflush(fp);
++
++  struct itimerval timer;
++  memset(&timer, 0, sizeof(timer));
++  timer.it_value.tv_sec = 0;
++  timer.it_value.tv_usec = 50000;
++
++  if(setitimer(ITIMER_REAL, &timer, NULL)){
++    printf("ERROR: setitimer()\n");
++  }
++
++  return;
++}
++
++void SetTimer(uint32_t window_size, uint32_t num_injected_globals, uint32_t num_signatures){
++  char filename[128];
++  signal(SIGALRM, SignalHandler);
++  signal(SIGUSR1, UserSignalHandlerUser);
++  num_injected_globals_ = num_injected_globals;
++  num_signatures_ = num_signatures;
++
++  sprintf(filename, "%ld.count", syscall(SYS_getpid));
++
++  fp = base::OS::FOpen(filename, "w");
++  if(fp == NULL){
++    printf("ERROR: fopen()\n");
++  }
++
++  fflush(fp);
++
++  struct itimerval timer;
++  memset(&timer, 0, sizeof(timer));
++  timer.it_value.tv_sec = 0;
++  timer.it_value.tv_usec = 50000;
++
++  if(setitimer(ITIMER_REAL, &timer, NULL)){
++    printf("ERROR: setitimer()\n");
++  }
++
++  return;
++}
++
+ // Process initialization of globals.
+ void InstanceBuilder::InitGlobals() {
++  int ret;
++  int32_t* int32_p;
++  int64_t* int64_p;
++  float* float_p;
++  double* double_p;
++  module_info module_info_;
++
++  module_info_.is_valid = true;
++  module_info_.pid_ = syscall(SYS_getpid);
++  module_info_.tid = syscall(SYS_gettid);
++  module_info_.pid = pthread_self();
++  ret = pthread_getcpuclockid(pthread_self(), &module_info_.cid);
++  if(ret != 0){
++    printf("ERROR: pthread_getcpuclock()\n");
++  }
++  module_info_.old_thread_cpu_time = 0;
++  memset(&module_info_.old_ts, 0, sizeof(timespec));
++  memset(module_info_.positive_count, 0, sizeof(long) * module_->num_signatures);
++  memset(module_info_.old_global, 0, sizeof(int64_t) * module_->num_signatures * module_->num_injected_globals);
++  module_info_.global_address.reserve(module_->num_signatures * module_->num_injected_globals);
++  for(uint32_t i = 0; i < module_->num_signatures * module_->num_injected_globals; i++){
++    module_info_.global_address.push_back(GetRawGlobalPtr<int64_t>(module_->globals[module_->start_global_index + i]));
++  }
++  module_info_list.push_back(module_info_);
++
+   for (auto global : module_->globals) {
+     if (global.mutability && global.imported) {
+       continue;
+@@ -1793,18 +2078,22 @@ void InstanceBuilder::InitGlobals() {
+       case WasmInitExpr::kI32Const:
+         WriteLittleEndianValue<int32_t>(GetRawGlobalPtr<int32_t>(global),
+                                         global.init.val.i32_const);
++        int32_p = GetRawGlobalPtr<int32_t>(global);
+         break;
+       case WasmInitExpr::kI64Const:
+         WriteLittleEndianValue<int64_t>(GetRawGlobalPtr<int64_t>(global),
+                                         global.init.val.i64_const);
++        int64_p = GetRawGlobalPtr<int64_t>(global);
+         break;
+       case WasmInitExpr::kF32Const:
+         WriteLittleEndianValue<float>(GetRawGlobalPtr<float>(global),
+                                       global.init.val.f32_const);
++        float_p = GetRawGlobalPtr<float>(global);
+         break;
+       case WasmInitExpr::kF64Const:
+         WriteLittleEndianValue<double>(GetRawGlobalPtr<double>(global),
+                                        global.init.val.f64_const);
++        double_p = GetRawGlobalPtr<double>(global);
+         break;
+       case WasmInitExpr::kGlobalIndex: {
+         // Initialize with another global.
+@@ -1827,6 +2116,10 @@ void InstanceBuilder::InitGlobals() {
+         break;
+     }
+   }
++  if(!has_setitimer){
++    has_setitimer = true;
++    SetTimer(module_->window_size, module_->num_injected_globals, module_->num_signatures);
++  }
+ }
+ 
+ // Allocate memory for a module instance as a new JSArrayBuffer.
+diff --git a/src/wasm/module-decoder.cc b/src/wasm/module-decoder.cc
+index 6b0a3d64..cc39a32d 100644
+--- a/src/wasm/module-decoder.cc
++++ b/src/wasm/module-decoder.cc
+@@ -540,6 +540,7 @@ class ModuleDecoderImpl : public Decoder {
+               error("mutable globals cannot be imported");
+             }
+           }
++          module_->start_global_index++;
+           break;
+         }
+         case kExternalException: {
+@@ -619,9 +620,11 @@ class ModuleDecoderImpl : public Decoder {
+   }
+ 
+   void DecodeGlobalSection() {
++    module_->has_global = true;
+     uint32_t globals_count = consume_count("globals count", kV8MaxWasmGlobals);
+     uint32_t imported_globals = static_cast<uint32_t>(module_->globals.size());
+-    module_->globals.reserve(imported_globals + globals_count);
++    module_->globals.reserve(imported_globals + globals_count + module_->num_signatures * module_->num_injected_globals);
++    module_->start_global_index += globals_count;
+     for (uint32_t i = 0; ok() && i < globals_count; ++i) {
+       TRACE("DecodeGlobal[%d] module+%d\n", i, static_cast<int>(pc_ - start_));
+       // Add an uninitialized global and pass a pointer to it.
+@@ -630,6 +633,9 @@ class ModuleDecoderImpl : public Decoder {
+       WasmGlobal* global = &module_->globals.back();
+       DecodeGlobalInModule(module_.get(), i + imported_globals, global);
+     }
++    for(uint32_t i = 0; ok() && i < module_->num_signatures * module_->num_injected_globals; i++){
++      module_->globals.push_back({kWasmI64, true, WasmInitExpr((int64_t)0), {0}, false, false});
++    }
+     if (ok()) CalculateGlobalOffsets(module_.get());
+   }
+ 
+@@ -898,6 +904,15 @@ class ModuleDecoderImpl : public Decoder {
+   }
+ 
+   ModuleResult FinishDecoding(bool verify_functions = true) {
++    if(!module_->has_global){
++      uint32_t imported_globals = static_cast<uint32_t>(module_->globals.size());
++      module_->globals.reserve(imported_globals + module_->num_signatures * module_->num_injected_globals);
++      for(uint32_t i = 0; ok() && i < module_->num_signatures * module_->num_injected_globals; i++){
++        module_->globals.push_back({kWasmI64, true, WasmInitExpr((int64_t)0), {0}, false, false});
++      }
++      if(ok()) CalculateGlobalOffsets(module_.get());
++      module_->has_global = true;
++    }
+     if (ok()) {
+       CalculateGlobalOffsets(module_.get());
+     }
+diff --git a/src/wasm/wasm-code-manager.h b/src/wasm/wasm-code-manager.h
+index 65156b74..614ec654 100644
+--- a/src/wasm/wasm-code-manager.h
++++ b/src/wasm/wasm-code-manager.h
+@@ -339,6 +339,8 @@ class V8_EXPORT_PRIVATE NativeModule final {
+ 
+   const WasmFeatures& enabled_features() const { return enabled_features_; }
+ 
++  uint64_t counter = 0;
++
+  private:
+   friend class WasmCode;
+   friend class WasmCodeManager;
+diff --git a/src/wasm/wasm-interpreter.cc b/src/wasm/wasm-interpreter.cc
+index e724e730..4e2cfd75 100644
+--- a/src/wasm/wasm-interpreter.cc
++++ b/src/wasm/wasm-interpreter.cc
+@@ -1093,8 +1093,15 @@ class ThreadImpl {
+       : codemap_(codemap),
+         instance_object_(instance_object),
+         frames_(zone),
+-        activations_(zone) {}
++        activations_(zone),
++        time_stamp(static_cast<int64_t>(V8::GetCurrentPlatform()->CurrentClockTimeMillis())),
++        file_name(CreateFileName()),
++        wasm_dump(base::OS::FOpen(file_name, "a")) {}
+ 
++  char* CreateFileName(){
++    sprintf(buffer,"wasm_dump_%ld.log", time_stamp);
++    return buffer;
++  }
+   //==========================================================================
+   // Implementation of public interface for WasmInterpreter::Thread.
+   //==========================================================================
+@@ -1264,6 +1271,10 @@ class ThreadImpl {
+   // Store the stack height of each activation (for unwind and frame
+   // inspection).
+   ZoneVector<Activation> activations_;
++  int64_t time_stamp;
++  char* file_name;
++  char buffer[128];
++  FILE* wasm_dump;
+ 
+   CodeMap* codemap() const { return codemap_; }
+   const WasmModule* module() const { return codemap_->module(); }
+@@ -2148,6 +2159,8 @@ class ThreadImpl {
+           StackHeight() - stack_effect.first + stack_effect.second;
+ #endif
+ 
++      fprintf(wasm_dump, "%c", orig);
++      //fflush(wasm_dump);
+       switch (orig) {
+         case kExprNop:
+           break;
+diff --git a/src/wasm/wasm-js.cc b/src/wasm/wasm-js.cc
+index 314db914..e0a321fb 100644
+--- a/src/wasm/wasm-js.cc
++++ b/src/wasm/wasm-js.cc
+@@ -385,9 +385,65 @@ class AsyncInstantiateCompileResultResolver
+ 
+ }  // namespace
+ 
++void WebAssemblyCallStackHandler(const std::string& caller){
++  std::fstream fs;
++  char filename[16];
++  std::string data = "";
++  
++  sprintf(filename, "%ld.stack", syscall(SYS_getpid));
++  fs.open(filename, std::ios::app);
++  if(!fs){
++    std::cout << "ERROR: fstream.open()" << std::endl;
++  }
++
++  data += std::to_string(syscall(SYS_gettid)) + " WebAssembly" + caller + "\n";
++  v8::Isolate* v8_isolate = v8::Isolate::GetCurrent();
++  v8::Local<v8::StackFrame> bottomCallStackFrame;
++  if(v8_isolate->InContext()){
++    v8::Local<v8::StackTrace> stackTrace = v8::StackTrace::CurrentStackTrace(v8_isolate, 200);
++    if(!stackTrace.IsEmpty() && stackTrace->GetFrameCount() > 0) {
++      int index = stackTrace->GetFrameCount() - 1;
++      if(index >= 0){
++        bottomCallStackFrame = stackTrace->GetFrame(v8_isolate, index);
++        v8::Local<v8::String> script_url = bottomCallStackFrame->GetScriptNameOrSourceURL();
++        v8::String::Utf8Value script_url_str(v8_isolate, script_url);
++        std::string url = std::string(*script_url_str);
++        // only one frame
++        if(index == 0){
++          data += "single_frame " + url + "\n";
++        }
++        // return both the top and bottom frames
++        else{
++          v8::Local<v8::StackFrame> topCallStackFrame = stackTrace->GetFrame(v8_isolate, 0);
++          v8::Local<v8::String> top_script_url = topCallStackFrame->GetScriptNameOrSourceURL();
++          v8::String::Utf8Value top_script_url_str(v8_isolate, top_script_url);
++          std::string top_url = std::string(*top_script_url_str);
++          data += "top_frame " + top_url + "\n";
++          data += "btm_frame " + url + "\n";
++        }
++      }
++    }
++    else{
++      data += "WARNING empty_callstack\n";
++    }
++  }
++  else{
++    data += "ERROR invalid_isolate\n";
++  }
++
++  fs << data;
++  fs.flush();
++  fs.close();
++
++  return;
++}
++
+ // WebAssembly.compile(bytes) -> Promise
+ void WebAssemblyCompile(const v8::FunctionCallbackInfo<v8::Value>& args) {
+   v8::Isolate* isolate = args.GetIsolate();
++
++  WebAssemblyCallStackHandler(std::string(".compile"));
++
+   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+   MicrotasksScope runs_microtasks(isolate, MicrotasksScope::kRunMicrotasks);
+ 
+@@ -423,6 +479,9 @@ void WebAssemblyCompile(const v8::FunctionCallbackInfo<v8::Value>& args) {
+ void WebAssemblyCompileStreaming(
+     const v8::FunctionCallbackInfo<v8::Value>& args) {
+   v8::Isolate* isolate = args.GetIsolate();
++
++  WebAssemblyCallStackHandler(std::string(".compileStreaming"));
++
+   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+   MicrotasksScope runs_microtasks(isolate, MicrotasksScope::kRunMicrotasks);
+   HandleScope scope(isolate);
+@@ -514,6 +573,9 @@ void WebAssemblyValidate(const v8::FunctionCallbackInfo<v8::Value>& args) {
+ // new WebAssembly.Module(bytes) -> WebAssembly.Module
+ void WebAssemblyModule(const v8::FunctionCallbackInfo<v8::Value>& args) {
+   v8::Isolate* isolate = args.GetIsolate();
++
++  WebAssemblyCallStackHandler(std::string(".Module"));
++
+   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+   if (i_isolate->wasm_module_callback()(args)) return;
+ 
+@@ -639,6 +701,9 @@ MaybeLocal<Value> WebAssemblyInstantiateImpl(Isolate* isolate,
+ 
+ // new WebAssembly.Instance(module, imports) -> WebAssembly.Instance
+ void WebAssemblyInstance(const v8::FunctionCallbackInfo<v8::Value>& args) {
++
++  WebAssemblyCallStackHandler(std::string(".Instance"));
++
+   Isolate* isolate = args.GetIsolate();
+   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+   i_isolate->CountUsage(
+@@ -671,6 +736,9 @@ void WebAssemblyInstance(const v8::FunctionCallbackInfo<v8::Value>& args) {
+ void WebAssemblyInstantiateStreaming(
+     const v8::FunctionCallbackInfo<v8::Value>& args) {
+   v8::Isolate* isolate = args.GetIsolate();
++
++  WebAssemblyCallStackHandler(std::string(".instantiateStreaming"));
++
+   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+   i_isolate->CountUsage(
+       v8::Isolate::UseCounterFeature::kWebAssemblyInstantiation);
+@@ -751,6 +819,9 @@ void WebAssemblyInstantiateStreaming(
+ //     {module: WebAssembly.Module, instance: WebAssembly.Instance}
+ void WebAssemblyInstantiate(const v8::FunctionCallbackInfo<v8::Value>& args) {
+   v8::Isolate* isolate = args.GetIsolate();
++
++  WebAssemblyCallStackHandler(std::string(".instantiate"));
++
+   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+   i_isolate->CountUsage(
+       v8::Isolate::UseCounterFeature::kWebAssemblyInstantiation);
+diff --git a/src/wasm/wasm-module.h b/src/wasm/wasm-module.h
+index d188cf59..41e4f30c 100644
+--- a/src/wasm/wasm-module.h
++++ b/src/wasm/wasm-module.h
+@@ -146,7 +146,9 @@ struct V8_EXPORT_PRIVATE WasmModule {
+   bool has_shared_memory = false;  // true if memory is a SharedArrayBuffer
+   bool has_maximum_pages = false;  // true if there is a maximum memory size
+   bool has_memory = false;         // true if the memory was defined or imported
++  bool has_global = false;
+   bool mem_export = false;         // true if the memory is exported
++  int start_global_index = 0;
+   int start_function_index = -1;   // start function, >= 0 if any
+ 
+   std::vector<WasmGlobal> globals;
+@@ -154,6 +156,9 @@ struct V8_EXPORT_PRIVATE WasmModule {
+   // mutable.
+   uint32_t globals_buffer_size = 0;
+   uint32_t num_imported_mutable_globals = 0;
++  uint32_t num_injected_globals = 3;
++  uint32_t window_size = 5;
++  uint32_t num_signatures = 4;
+   uint32_t num_imported_functions = 0;
+   uint32_t num_declared_functions = 0;  // excluding imported
+   uint32_t num_exported_functions = 0;
